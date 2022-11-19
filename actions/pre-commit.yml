@@ -1,0 +1,50 @@
+name: pre-commit
+description: Run pre-commit
+inputs:
+  version:
+    description: The pre-commit version to use
+    default: "2.20.0"
+  python-version:
+    description: The python-version to use.
+    default: "3.9"
+  extra_args:
+    description: options to pass to pre-commit run
+    required: false
+    default: '--all-files'
+runs:
+  using: composite
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '${{ inputs.python-version }}'
+
+    - name: Calculate python version hash
+      shell: bash
+      run: |
+        python --version --version
+        PYTHON_VERSION_HASH=$python --version --version | sha256sum | cut -d ' ' -f 1)
+        echo "PYTHON_VERSION_HASH=$PYTHON_VERSION_HASH" >> $GITHUB_ENV
+
+    - name: Install pre-commit
+      run: |
+        python -m pip install pre-commit==${{ inputs.version }}
+
+    - name: List Pip Packages
+      run: |
+        python -m pip freeze --local
+
+    - name: Setup Cache
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit|${{ inputs.version }}|${{ env.PYTHON_VERSION_HASH }}|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml', '.pre-commit-hooks/**') }}
+
+    - name: Install pre-commit hooks
+      run: |
+        pre-commit install --install-hooks
+
+    - name: Run pre-commit
+      shell: bash
+      run: |
+        pre-commit run --show-diff-on-failure --color=always ${{ inputs.extra_args }}
